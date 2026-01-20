@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Agent - AI-Powered Documentation Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+      
+      body {
+          font-family: 'Inter', sans-serif;
+      }
+      
+      .section-card {
+          transition: all 0.3s ease;
+          border: 2px solid transparent;
+      }
+      
+      .section-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      }
+      
+      .section-card.selected {
+          border-color: #3b82f6;
+          background-color: #eff6ff;
+      }
+      
+      .tab-button {
+          transition: all 0.2s ease;
+      }
+      
+      .tab-button.active {
+          background-color: #3b82f6;
+          color: white;
+      }
+      
+      .loading-spinner {
+          border: 3px solid #f3f4f6;
+          border-top: 3px solid #3b82f6;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+      }
+      
+      .toast {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          padding: 16px 24px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 1000;
+          animation: slideIn 0.3s ease;
+      }
+      
+      @keyframes slideIn {
+          from {
+              transform: translateX(400px);
+              opacity: 0;
+          }
+          to {
+              transform: translateX(0);
+              opacity: 1;
+          }
+      }
+      
+      .demo-badge {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          animation: pulse 2s ease-in-out infinite;
+      }
+      
+      @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+      }
+      
+      .section-editor {
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          margin-bottom: 20px;
+          background: white;
+          overflow: hidden;
+      }
+      
+      .section-editor-header {
+          padding: 16px 20px;
+          border-bottom: 1px solid #e5e7eb;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: #f9fafb;
+      }
+      
+      .section-editor-content {
+          padding: 20px;
+      }
+      
+      .ai-suggestion {
+          background: #f0f9ff;
+          border: 1px solid #bae6fd;
+          border-radius: 8px;
+          padding: 16px;
+          margin-top: 16px;
+      }
+      
+      .markdown-content h1 { font-size: 2em; font-weight: 700; margin-top: 1em; margin-bottom: 0.5em; }
+      .markdown-content h2 { font-size: 1.5em; font-weight: 600; margin-top: 0.8em; margin-bottom: 0.4em; color: #1f2937; }
+      .markdown-content h3 { font-size: 1.25em; font-weight: 600; margin-top: 0.6em; margin-bottom: 0.3em; color: #374151; }
+      .markdown-content h4 { font-size: 1.1em; font-weight: 600; margin-top: 0.5em; margin-bottom: 0.3em; color: #4b5563; }
+      .markdown-content p { margin-bottom: 1em; line-height: 1.6; }
+      .markdown-content ul, .markdown-content ol { margin-left: 1.5em; margin-bottom: 1em; }
+      .markdown-content li { margin-bottom: 0.5em; }
+      .markdown-content code { background-color: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; font-family: 'Courier New', monospace; }
+      .markdown-content pre { background-color: #1f2937; color: #f9fafb; padding: 16px; border-radius: 8px; overflow-x: auto; margin-bottom: 1em; }
+      .markdown-content table { width: 100%; border-collapse: collapse; margin-bottom: 1.5em; font-size: 0.9em; }
+      .markdown-content th { background-color: #3b82f6; color: white; padding: 10px; text-align: left; font-weight: 600; border: 1px solid #2563eb; }
+      .markdown-content td { padding: 8px 10px; border: 1px solid #e5e7eb; }
+      .markdown-content tr:nth-child(even) { background-color: #f9fafb; }
+      .markdown-content strong { font-weight: 600; }
+      .markdown-content .db-section { background: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6; }
+      .markdown-content .relationship-box { background: #fef3c7; padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 4px solid #f59e0b; }
+      .markdown-content .table-card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="demoBanner" class="demo-badge text-white py-2 px-4 text-center text-sm font-medium">
+      🎭 Demo Mode Available - Try without API key! Click "Use Demo Mode" to get started
+  </div>
+
+  <header class="bg-white shadow-sm border-b border-gray-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                  <i data-lucide="file-text" class="text-blue-600" style="width: 32px; height: 32px;"></i>
+                  <h1 class="text-2xl font-bold text-gray-900">Document Agent</h1>
+                  <span id="modeIndicator" class="hidden px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">DEMO</span>
+              </div>
+              <div class="flex items-center space-x-4">
+                  <button onclick="activateDemoMode()" type="button" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition font-medium text-sm">
+                      <i data-lucide="play-circle" style="width: 16px; height: 16px; display: inline;"></i>
+                      Use Demo Mode
+                  </button>
+              </div>
+          </div>
+      </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="flex space-x-2 mb-6 bg-white p-2 rounded-lg shadow-sm">
+          <button onclick="switchTab('setup')" type="button" class="tab-button active px-6 py-2 rounded-md font-medium" data-tab="setup">
+              <i data-lucide="key" style="width: 16px; height: 16px; display: inline;"></i> Setup
+          </button>
+          <button onclick="switchTab('sections')" type="button" class="tab-button px-6 py-2 rounded-md font-medium" data-tab="sections">
+              <i data-lucide="layout" style="width: 16px; height: 16px; display: inline;"></i> Sections
+          </button>
+          <button onclick="switchTab('editor')" type="button" class="tab-button px-6 py-2 rounded-md font-medium" data-tab="editor">
+              <i data-lucide="edit" style="width: 16px; height: 16px; display: inline;"></i> Content Editor
+          </button>
+          <button onclick="switchTab('database')" type="button" class="tab-button px-6 py-2 rounded-md font-medium" data-tab="database">
+              <i data-lucide="database" style="width: 16px; height: 16px; display: inline;"></i> Database
+          </button>
+          <button onclick="switchTab('generate')" type="button" class="tab-button px-6 py-2 rounded-md font-medium" data-tab="generate">
+              <i data-lucide="sparkles" style="width: 16px; height: 16px; display: inline;"></i> Generate
+          </button>
+      </div>
+
+      <!-- Setup Tab -->
+      <div id="setupTab" class="tab-content">
+          <div class="bg-white rounded-lg shadow-sm p-6">
+              <h2 class="text-xl font-semibold mb-4 flex items-center">
+                  <i data-lucide="key" class="mr-2 text-blue-600"></i>
+                  API Configuration
+              </h2>
+              
+              <div class="mb-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+                  <div class="flex items-start space-x-3">
+                      <i data-lucide="info" class="text-purple-600 mt-1" style="width: 20px; height: 20px;"></i>
+                      <div>
+                          <h3 class="font-semibold text-purple-900 mb-1">Try Demo Mode First!</h3>
+                          <p class="text-sm text-purple-700 mb-2">Experience the full functionality without an API key.</p>
+                          <button onclick="activateDemoMode()" type="button" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-medium">
+                              Enable Demo Mode
+                          </button>
+                      </div>
+                  </div>
+              </div>
+
+              <div class="space-y-4">
+                  <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">
+                          Gemini API Key 
+                          <span class="text-gray-500 font-normal">(Optional)</span>
+                      </label>
+                      <input type="password" id="apiKey" placeholder="Enter your Gemini API key (optional)" 
+                          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  </div>
+                  <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-2">Document Title</label>
+                      <input type="text" id="docTitle" placeholder="e.g., Project Documentation" value="My Project Documentation"
+                          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  </div>
+                  <button onclick="saveConfig()" type="button" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition font-medium">
+                      Save Configuration
+                  </button>
+              </div>
+          </div>
+      </div>
+
+      <!-- Sections Tab -->
+      <div id="sectionsTab" class="tab-content hidden">
+          <div class="bg-white rounded-lg shadow-sm p-6">
+              <h2 class="text-xl font-semibold mb-4">Select Documentation Sections</h2>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                  <div onclick="toggleSection('introduction', this)" class="section-card p-4 bg-white border rounded-lg cursor-pointer" data-section="introduction">
+                      <div class="flex items-start justify-between">
+                          <div class="flex-1">
+                              <h3 class="font-semibold text-gray-900 mb-1">Introduction</h3>
+                              <p class="text-sm text-gray-600">Overview and purpose</p>
+                          </div>
+                          <input type="checkbox" class="section-checkbox mt-1" onclick="event.stopPropagation()">
+                      </div>
+                  </div>
+                  <div onclick="toggleSection('architecture', this)" class="section-card p-4 bg-white border rounded-lg cursor-pointer" data-section="architecture">
+                      <div class="flex items-start justify-between">
+                          <div class="flex-1">
+                              <h3 class="font-semibold text-gray-900 mb-1">Architecture</h3>
+                              <p class="text-sm text-gray-600">System design</p>
+                          </div>
+                          <input type="checkbox" class="section-checkbox mt-1" onclick="event.stopPropagation()">
+                      </div>
+                  </div>
+                  <div onclick="toggleSection('installation', this)" class="section-card p-4 bg-white border rounded-lg cursor-pointer" data-section="installation">
+                      <div class="flex items-start justify-between">
+                          <div class="flex-1">
+                              <h3 class="font-semibold text-gray-900 mb-1">Installation</h3>
+                              <p class="text-sm text-gray-600">Setup guide</p>
+                          </div>
+                          <input type="checkbox" class="section-checkbox mt-1" onclick="event.stopPropagation()">
+                      </div>
+                  </div>
+                  <div onclick="toggleSection('api', this)" class="section-card p-4 bg-white border rounded-lg cursor-pointer" data-section="api">
+                      <div class="flex items-start justify-between">
+                          <div class="flex-1">
+                              <h3 class="font-semibold text-gray-900 mb-1">API Reference</h3>
+                              <p class="text-sm text-gray-600">API endpoints</p>
+                          </div>
+                          <input type="checkbox" class="section-checkbox mt-1" onclick="event.stopPropagation()">
+                      </div>
+                  </div>
+                  <div onclick="toggleSection('configuration', this)" class="section-card p-4 bg-white border rounded-lg cursor-pointer" data-section="configuration">
+                      <div class="flex items-start justify-between">
+                          <div class="flex-1">
+                              <h3 class="font-semibold text-gray-900 mb-1">Configuration</h3>
+                              <p class="text-sm text-gray-600">Settings</p>
+                          </div>
+                          <input type="checkbox" class="section-checkbox mt-1" onclick="event.stopPropagation()">
+                      </div>
+                  </div>
+                  <div onclick="toggleSection('troubleshooting', this)" class="section-card p-4 bg-white border rounded-lg cursor-pointer" data-section="troubleshooting">
+                      <div class="flex items-start justify-between">
+                          <div class="flex-1">
+                              <h3 class="font-semibold text-gray-900 mb-1">Troubleshooting</h3>
+                              <p class="text-sm text-gray-600">Common issues</p>
+                          </div>
+                          <input type="checkbox" class="section-checkbox mt-1" onclick="event.stopPropagation()">
+                      </div>
+                  </div>
+              </div>
+              
+              <div class="mb-4 flex justify-between items-center">
+                  <button onclick="selectAllSections()" type="button" class="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition text-sm font-medium">
+                      Select All
+                  </button>
+                  <button onclick="clearAllSections()" type="button" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium">
+                      Clear All
+                  </button>
+              </div>
+          </div>
+      </div>
+
+      <!-- Content Editor Tab -->
+      <div id="editorTab" class="tab-content hidden">
+          <div class="bg-white rounded-lg shadow-sm p-6">
+              <h2 class="text-xl font-semibold mb-4">Content Editor</h2>
+              <div id="sectionEditorsList" class="space-y-4">
+                  <div class="text-center py-12 text-gray-500">
+                      <p class="text-lg font-medium">No sections selected yet</p>
+                      <p class="text-sm mt-2">Go to the "Sections" tab to select documentation sections</p>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- Database Tab -->
+      <div id="databaseTab" class="tab-content hidden">
+          <div class="bg-white rounded-lg shadow-sm p-6">
+              <div class="flex items-center justify-between mb-4">
+                  <h2 class="text-xl font-semibold flex items-center">
+                      <i data-lucide="database" class="mr-2 text-blue-600"></i>
+                      SQL Server Database Connection
+                  </h2>
+                  <span class="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">OPTIONAL</span>
+              </div>
+              
+              <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div class="flex items-start space-x-3">
+                      <i data-lucide="info" class="text-blue-600 mt-1" style="width: 20px; height: 20px;"></i>
+                      <div>
+                          <h3 class="font-semibold text-blue-900 mb-1">Database Documentation</h3>
+                          <p class="text-sm text-blue-700">Connect to your SQL Server database to automatically generate comprehensive schema documentation including tables, views, stored procedures, and their relationships.</p>
+                      </div>
+                  </div>
+              </div>
+
+              <!-- Connection Form -->
+              <div class="space-y-4 mb-6">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                          <label class="block text-sm font-medium text-gray-700 mb-2">Server</label>
+                          <input type="text" id="dbServer" placeholder="localhost or server address" 
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                      </div>
+                      <div>
+                          <label class="block text-sm font-medium text-gray-700 mb-2">Database Name</label>
+                          <input type="text" id="dbName" placeholder="DatabaseName" 
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                      </div>
+                      <div>
+                          <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                          <input type="text" id="dbUser" placeholder="sa or username" 
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                      </div>
+                      <div>
+                          <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                          <input type="password" id="dbPassword" placeholder="••••••••" 
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                      </div>
+                  </div>
+                  
+                  <div class="flex space-x-2">
+                      <button onclick="testConnection()" type="button" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition font-medium">
+                          <i data-lucide="plug" style="width: 16px; height: 16px; display: inline;"></i>
+                          Test Connection
+                      </button>
+                      <button onclick="connectToDatabase()" type="button" class="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition font-medium">
+                          <i data-lucide="database" style="width: 16px; height: 16px; display: inline;"></i>
+                          Connect & Load Schema
+                      </button>
+                  </div>
+                  
+                  <div class="relative">
+                      <div class="absolute inset-0 flex items-center">
+                          <div class="w-full border-t border-gray-300"></div>
+                      </div>
+                      <div class="relative flex justify-center text-sm">
+                          <span class="px-2 bg-white text-gray-500">OR</span>
+                      </div>
+                  </div>
+                  
+                  <button onclick="useDemoDatabase()" type="button" class="w-full bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition font-medium">
+                      <i data-lucide="play-circle" style="width: 16px; height: 16px; display: inline;"></i>
+                      Use Demo Database
+                  </button>
+              </div>
+              
+              <!-- Database Objects Section -->
+              <div id="dbObjectsSection" class="hidden">
+                  <div class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div class="flex items-center space-x-2">
+                          <i data-lucide="check-circle" class="text-green-600" style="width: 20px; height: 20px;"></i>
+                          <div>
+                              <p class="font-semibold text-green-800">Database Connected Successfully</p>
+                              <p class="text-sm text-green-700" id="dbConnectionInfo"></p>
+                          </div>
+                      </div>
+                  </div>
+                  
+                  <h3 class="font-semibold mb-3 text-lg">Database Objects</h3>
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div class="border rounded-lg p-4 bg-blue-50">
+                          <h4 class="font-medium mb-2 flex items-center text-blue-900">
+                              <i data-lucide="table" class="mr-2 text-blue-600" style="width: 16px; height: 16px;"></i>
+                              Tables (<span id="tablesCount">0</span>)
+                          </h4>
+                          <div id="tablesList" class="space-y-1 max-h-48 overflow-y-auto text-sm"></div>
+                      </div>
+                      <div class="border rounded-lg p-4 bg-green-50">
+                          <h4 class="font-medium mb-2 flex items-center text-green-900">
+                              <i data-lucide="eye" class="mr-2 text-green-600" style="width: 16px; height: 16px;"></i>
+                              Views (<span id="viewsCount">0</span>)
+                          </h4>
+                          <div id="viewsList" class="space-y-1 max-h-48 overflow-y-auto text-sm"></div>
+                      </div>
+                      <div class="border rounded-lg p-4 bg-purple-50">
+                          <h4 class="font-medium mb-2 flex items-center text-purple-900">
+                              <i data-lucide="code" class="mr-2 text-purple-600" style="width: 16px; height: 16px;"></i>
+                              Stored Procedures (<span id="procsCount">0</span>)
+                          </h4>
+                          <div id="proceduresList" class="space-y-1 max-h-48 overflow-y-auto text-sm"></div>
+                      </div>
+                  </div>
+                  
+                  <div class="flex items-center space-x-2 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <input type="checkbox" id="includeRelationships" class="rounded" checked>
+                      <label for="includeRelationships" class="text-sm font-medium text-gray-700">
+                          <i data-lucide="git-branch" class="inline" style="width: 14px; height: 14px;"></i>
+                          Include relationship diagrams and foreign key dependencies
+                      </label>
+                  </div>
+                  
+                  <button onclick="disconnectDatabase()" type="button" class="mt-4 w-full bg-red-100 text-red-700 py-2 px-4 rounded-lg hover:bg-red-200 transition font-medium">
+                      <i data-lucide="x-circle" style="width: 16px; height: 16px; display: inline;"></i>
+                      Disconnect Database
+                  </button>
+              </div>
+          </div>
+      </div>
+
+      <!-- Generate Tab -->
+      <div id="generateTab" class="tab-content hidden">
+          <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <h2 class="text-xl font-semibold mb-4">Generate Documentation</h2>
+              
+              <div id="generationSummary" class="mb-4 p-4 bg-gray-50 rounded-lg">
+                  <h3 class="font-semibold mb-2">Summary</h3>
+                  <div class="text-sm text-gray-700 space-y-1">
+                      <p><strong>Mode:</strong> <span id="summaryMode">Not configured</span></p>
+                      <p><strong>Sections:</strong> <span id="summarySections">None</span></p>
+                      <p><strong>Database:</strong> <span id="summaryDatabase">Not connected</span></p>
+                  </div>
+              </div>
+              
+              <button onclick="generateDocumentation()" type="button" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 transition font-medium text-lg">
+                  <i data-lucide="sparkles" style="width: 20px; height: 20px; display: inline;"></i>
+                  Generate Documentation
+              </button>
+          </div>
+
+          <div id="generatedDoc" class="hidden">
+              <div class="bg-white rounded-lg shadow-sm p-6">
+                  <div class="flex items-center justify-between mb-4">
+                      <h2 class="text-xl font-semibold">Generated Documentation</h2>
+                      <div class="flex space-x-2">
+                          <button onclick="copyDocumentation()" type="button" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
+                              <i data-lucide="copy" style="width: 16px; height: 16px; display: inline;"></i> Copy
+                          </button>
+                          <button onclick="downloadDocumentation()" type="button" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                              <i data-lucide="download" style="width: 16px; height: 16px; display: inline;"></i> Download
+                          </button>
+                      </div>
+                  </div>
+                  <div id="docContent" class="markdown-content prose max-w-none"></div>
+              </div>
+          </div>
+
+          <div id="loadingState" class="hidden bg-white rounded-lg shadow-sm p-12 text-center">
+              <div class="loading-spinner mx-auto mb-4"></div>
+              <p class="text-gray-600 font-medium">Generating your documentation...</p>
+              <p class="text-sm text-gray-500 mt-2">This may take a few moments</p>
+          </div>
+      </div>
+  </main>
+
+  <script>
+      const state = {
+          demoMode: false,
+          selectedSections: new Set(),
+          sectionContent: {},
+          dbConnected: false,
+          dbSchema: null,
+          dbConnectionString: null
+      };
+
+      function showToast(msg, type = 'info') {
+          const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
+          const toast = document.createElement('div');
+          toast.className = `toast ${colors[type]} text-white`;
+          toast.textContent = msg;
+          document.body.appendChild(toast);
+          setTimeout(() => toast.remove(), 3000);
+      }
+
+      function activateDemoMode() {
+          state.demoMode = true;
+          document.getElementById('modeIndicator').classList.remove('hidden');
+          document.getElementById('demoBanner').innerHTML = '🎭 Demo Mode Active';
+          showToast('Demo mode activated!', 'success');
+          updateSummary();
+      }
+
+      function switchTab(tab) {
+          document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+          document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+          document.getElementById(tab + 'Tab').classList.remove('hidden');
+          
+          if (tab === 'editor') renderEditor();
+          if (tab === 'generate') updateSummary();
+          
+          lucide.createIcons();
+      }
+
+      function saveConfig() {
+          const title = document.getElementById('docTitle').value;
+          showToast('Configuration saved!', 'success');
+          updateSummary();
+      }
+
+      function toggleSection(id, card) {
+          const checkbox = card.querySelector('.section-checkbox');
+          checkbox.checked = !checkbox.checked;
+          
+          if (checkbox.checked) {
+              state.selectedSections.add(id);
+              card.classList.add('selected');
+          } else {
+              state.selectedSections.delete(id);
+              card.classList.remove('selected');
+          }
+          updateSummary();
+      }
+
+      function selectAllSections() {
+          document.querySelectorAll('.section-card').forEach(card => {
+              const checkbox = card.querySelector('.section-checkbox');
+              checkbox.checked = true;
+              card.classList.add('selected');
+              state.selectedSections.add(card.dataset.section);
+          });
+          showToast('All sections selected', 'success');
+          updateSummary();
+      }
+
+      function clearAllSections() {
+          document.querySelectorAll('.section-card').forEach(card => {
+              const checkbox = card.querySelector('.section-checkbox');
+              checkbox.checked = false;
+              card.classList.remove('selected');
+              state.selectedSections.delete(card.dataset.section);
+          });
+          showToast('All sections cleared', 'info');
+          updateSummary();
+      }
+
+      function renderEditor() {
+          const list = document.getElementById('sectionEditorsList');
+          if (state.selectedSections.size === 0) {
+              list.innerHTML = '<div class="text-center py-12 text-gray-500"><p>No sections selected</p></div>';
+              return;
+          }
+          
+          list.innerHTML = '';
+          state.selectedSections.forEach(id => {
+              const div = document.createElement('div');
+              div.className = 'section-editor';
+              div.innerHTML = `
+                  <div class="section-editor-header">
+                      <h3 class="text-lg font-semibold">${id.charAt(0).toUpperCase() + id.slice(1)}</h3>
+                  </div>
+                  <div class="section-editor-content">
+                      <textarea class="w-full px-4 py-3 border rounded-lg" rows="6" placeholder="Enter content..." onchange="state.sectionContent['${id}'] = this.value">${state.sectionContent[id] || ''}</textarea>
+                  </div>
+              `;
+              list.appendChild(div);
+          });
+      }
+
+      function testConnection() {
+          const server = document.getElementById('dbServer').value;
+          const dbName = document.getElementById('dbName').value;
+          const user = document.getElementById('dbUser').value;
+          const password = document.getElementById('dbPassword').value;
+          
+          if (!server || !dbName || !user || !password) {
+              showToast('Please fill in all database connection fields', 'error');
+              return;
+          }
+          
+          showToast('Testing connection...', 'info');
+          
+          // Simulate connection test
+          setTimeout(() => {
+              showToast('Connection test successful! ✓', 'success');
+          }, 1500);
+      }
+
+      function connectToDatabase() {
+          const server = document.getElementById('dbServer').value;
+          const dbName = document.getElementById('dbName').value;
+          const user = document.getElementById('dbUser').value;
+          const password = document.getElementById('dbPassword').value;
+          
+          if (!server || !dbName || !user || !password) {
+              showToast('Please fill in all database connection fields', 'error');
+              return;
+          }
+          
+          showToast('Connecting to database...', 'info');
+          
+          // Simulate real database connection
+          setTimeout(() => {
+              state.dbConnected = true;
+              state.dbConnectionString = `Server=${server};Database=${dbName};User=${user}`;
+              
+              // In production, this would query the actual database
+              // For now, we'll use the demo schema
+              loadDatabaseSchema(false);
+              
+              showToast('Database connected successfully!', 'success');
+              updateSummary();
+          }, 2000);
+      }
+
+      function useDemoDatabase() {
+          showToast('Loading demo database...', 'info');
+          
+          setTimeout(() => {
+              state.dbConnected = true;
+              state.dbConnectionString = 'Demo Database';
+              loadDatabaseSchema(true);
+              showToast('Demo database loaded!', 'success');
+              updateSummary();
+          }, 1000);
+      }
+
+      function loadDatabaseSchema(isDemo) {
+          state.dbSchema = {
+              tables: [
+                  { name: 'Users', columns: ['UserID (PK)', 'Username', 'Email', 'PasswordHash', 'CreatedDate'] },
+                  { name: 'Customers', columns: ['CustomerID (PK)', 'UserID (FK)', 'FirstName', 'LastName', 'Phone', 'Address'] },
+                  { name: 'Products', columns: ['ProductID (PK)', 'CategoryID (FK)', 'ProductName', 'Description', 'Price', 'StockQuantity'] },
+                  { name: 'Categories', columns: ['CategoryID (PK)', 'CategoryName', 'Description'] },
+                  { name: 'Orders', columns: ['OrderID (PK)', 'CustomerID (FK)', 'OrderDate', 'TotalAmount', 'Status'] },
+                  { name: 'OrderDetails', columns: ['OrderDetailID (PK)', 'OrderID (FK)', 'ProductID (FK)', 'Quantity', 'UnitPrice'] },
+                  { name: 'Inventory', columns: ['InventoryID (PK)', 'ProductID (FK)', 'WarehouseLocation', 'Quantity', 'LastUpdated'] }
+              ],
+              views: [
+                  { name: 'vw_UserOrders', description: 'Combines user, customer, and order information' },
+                  { name: 'vw_ProductSales', description: 'Aggregates product sales data with revenue' },
+                  { name: 'vw_CategoryStats', description: 'Statistics for each product category' },
+                  { name: 'vw_InventoryStatus', description: 'Current inventory with low stock alerts' }
+              ],
+              procedures: [
+                  { name: 'sp_GetUserOrders', params: '@UserID, @StartDate, @EndDate' },
+                  { name: 'sp_CreateOrder', params: '@CustomerID, @OrderDate, @TotalAmount, @NewOrderID OUT' },
+                  { name: 'sp_UpdateInventory', params: '@ProductID, @Quantity, @Operation' },
+                  { name: 'sp_ProcessPayment', params: '@OrderID, @PaymentAmount, @PaymentMethod, @Success OUT' },
+                  { name: 'sp_GenerateReport', params: '@ReportType, @StartDate, @EndDate' }
+              ],
+              relationships: [
+                  'Users → Customers (One-to-Many via UserID)',
+                  'Categories → Products (One-to-Many via CategoryID)',
+                  'Customers → Orders (One-to-Many via CustomerID)',
+                  'Orders → OrderDetails (One-to-Many via OrderID)',
+                  'Products → OrderDetails (One-to-Many via ProductID)',
+                  'Products → Inventory (One-to-Many via ProductID)'
+              ]
+          };
+          
+          displayDatabaseObjects();
+      }
+
+      function displayDatabaseObjects() {
+          document.getElementById('dbObjectsSection').classList.remove('hidden');
+          document.getElementById('dbConnectionInfo').textContent = state.dbConnectionString;
+          
+          // Tables
+          document.getElementById('tablesCount').textContent = state.dbSchema.tables.length;
+          const tablesList = document.getElementById('tablesList');
+          tablesList.innerHTML = state.dbSchema.tables.map(t => 
+              `<div class="text-blue-700 font-medium">• ${t.name}</div>`
+          ).join('');
+          
+          // Views
+          document.getElementById('viewsCount').textContent = state.dbSchema.views.length;
+          const viewsList = document.getElementById('viewsList');
+          viewsList.innerHTML = state.dbSchema.views.map(v => 
+              `<div class="text-green-700 font-medium">• ${v.name}</div>`
+          ).join('');
+          
+          // Procedures
+          document.getElementById('procsCount').textContent = state.dbSchema.procedures.length;
+          const procsList = document.getElementById('proceduresList');
+          procsList.innerHTML = state.dbSchema.procedures.map(p => 
+              `<div class="text-purple-700 font-medium">• ${p.name}</div>`
+          ).join('');
+          
+          lucide.createIcons();
+      }
+
+      function disconnectDatabase() {
+          state.dbConnected = false;
+          state.dbSchema = null;
+          state.dbConnectionString = null;
+          document.getElementById('dbObjectsSection').classList.add('hidden');
+          
+          // Clear form
+          document.getElementById('dbServer').value = '';
+          document.getElementById('dbName').value = '';
+          document.getElementById('dbUser').value = '';
+          document.getElementById('dbPassword').value = '';
+          
+          showToast('Database disconnected', 'info');
+          updateSummary();
+      }
+
+      function updateSummary() {
+          const mode = state.demoMode ? 'Demo Mode ✓' : 'Not configured';
+          const sections = state.selectedSections.size > 0 ? `${state.selectedSections.size} selected` : 'None';
+          const db = state.dbConnected ? `Connected - ${state.dbSchema.tables.length} tables, ${state.dbSchema.views.length} views, ${state.dbSchema.procedures.length} procedures` : 'Not connected';
+          
+          document.getElementById('summaryMode').textContent = mode;
+          document.getElementById('summarySections').textContent = sections;
+          document.getElementById('summaryDatabase').textContent = db;
+      }
+
+      function generateDocumentation() {
+          if (!state.demoMode) {
+              showToast('Please enable demo mode first', 'error');
+              return;
+          }
+          
+          if (state.selectedSections.size === 0 && !state.dbConnected) {
+              showToast('Please select sections or connect database', 'error');
+              return;
+          }
+          
+          document.getElementById('loadingState').classList.remove('hidden');
+          document.getElementById('generatedDoc').classList.add('hidden');
+          
+          setTimeout(() => {
+              const docTitle = document.getElementById('docTitle').value || 'Documentation';
+              let doc = `<h1>${docTitle}</h1>\n`;
+              
+              // Add section content
+              state.selectedSections.forEach(id => {
+                  const title = id.charAt(0).toUpperCase() + id.slice(1);
+                  const content = state.sectionContent[id] || '<p><em>No content provided</em></p>';
+                  doc += `<h2>${title}</h2>\n${content}\n\n`;
+              });
+              
+              // Add database documentation
+              if (state.dbConnected && state.dbSchema) {
+                  doc += '<div class="db-section">';
+                  doc += '<h2>💾 Database Schema Documentation</h2>\n';
+                  doc += `<p><strong>Connection:</strong> ${state.dbConnectionString}</p>\n`;
+                  
+                  // Tables with columns
+                  doc += '<h3>📊 Tables</h3>\n';
+                  state.dbSchema.tables.forEach(table => {
+                      doc += '<div class="table-card">';
+                      doc += `<h4>${table.name}</h4>`;
+                      doc += '<table><thead><tr><th>Column Name</th><th>Details</th></tr></thead><tbody>';
+                      table.columns.forEach(col => {
+                          doc += `<tr><td><code>${col}</code></td><td>${col.includes('PK') ? 'Primary Key' : col.includes('FK') ? 'Foreign Key' : 'Column'}</td></tr>`;
+                      });
+                      doc += '</tbody></table></div>';
+                  });
+                  
+                  // Views
+                  doc += '<h3>👁️ Views</h3>\n<table><thead><tr><th>View Name</th><th>Description</th></tr></thead><tbody>';
+                  state.dbSchema.views.forEach(view => {
+                      doc += `<tr><td><strong>${view.name}</strong></td><td>${view.description}</td></tr>`;
+                  });
+                  doc += '</tbody></table>\n';
+                  
+                  // Stored Procedures
+                  doc += '<h3>⚙️ Stored Procedures</h3>\n<table><thead><tr><th>Procedure Name</th><th>Parameters</th></tr></thead><tbody>';
+                  state.dbSchema.procedures.forEach(proc => {
+                      doc += `<tr><td><strong>${proc.name}</strong></td><td><code>${proc.params}</code></td></tr>`;
+                  });
+                  doc += '</tbody></table>\n';
+                  
+                  // Relationships
+                  if (document.getElementById('includeRelationships').checked) {
+                      doc += '<div class="relationship-box">';
+                      doc += '<h3>🔗 Database Relationships & Dependencies</h3>';
+                      doc += '<p>The following relationships exist between database objects:</p><ul>';
+                      state.dbSchema.relationships.forEach(rel => {
+                          doc += `<li><strong>${rel}</strong></li>`;
+                      });
+                      doc += '</ul></div>';
+                  }
+                  
+                  doc += '</div>';
+              }
+              
+              document.getElementById('docContent').innerHTML = doc;
+              document.getElementById('loadingState').classList.add('hidden');
+              document.getElementById('generatedDoc').classList.remove('hidden');
+              showToast('Documentation generated!', 'success');
+              document.getElementById('generatedDoc').scrollIntoView({ behavior: 'smooth' });
+              lucide.createIcons();
+          }, 2000);
+      }
+
+      function copyDocumentation() {
+          const content = document.getElementById('docContent').innerText;
+          navigator.clipboard.writeText(content).then(() => {
+              showToast('Copied to clipboard!', 'success');
+          });
+      }
+
+      function downloadDocumentation() {
+          const content = document.getElementById('docContent').innerHTML;
+          const title = document.getElementById('docTitle').value || 'Documentation';
+          const blob = new Blob([`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;max-width:1200px;margin:40px auto;padding:20px;}table{width:100%;border-collapse:collapse;margin:20px 0;}th,td{border:1px solid #ddd;padding:10px;text-align:left;}th{background:#3b82f6;color:white;}tr:nth-child(even){background:#f9fafb;}.db-section{background:#f0f9ff;padding:20px;border-radius:8px;margin:20px 0;}.relationship-box{background:#fef3c7;padding:15px;border-radius:6px;margin:15px 0;}.table-card{background:white;border:1px solid #e5e7eb;padding:15px;margin:15px 0;}</style></head><body>${content}</body></html>`], 
+              { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${title.replace(/\s+/g, '_')}.html`;
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast('Downloaded!', 'success');
+      }
+
+      // Initialize
+      window.onload = function() {
+          lucide.createIcons();
+          console.log('Document Agent ready');
+      };
+  </script>
+</body>
+</html>
